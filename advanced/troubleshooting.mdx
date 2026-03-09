@@ -1,0 +1,349 @@
+---
+title: "Troubleshooting"
+description: "Common issues and solutions for the inventory management system"
+---
+
+# Troubleshooting Guide
+
+This guide covers common issues you may encounter when running the inventory management system and how to resolve them.
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="FileNotFoundError: No such file or directory: 'data/inventario.xlsx'">
+    **Problem:** The system cannot find the input inventory file.
+
+    **Solution:**
+
+    1. Verify the file exists in the correct location:
+       ```bash
+       ls -l data/inventario.xlsx
+       ```
+
+    2. Create the `data/` directory if it doesn't exist:
+       ```bash
+       mkdir -p data
+       ```
+
+    3. Ensure your Excel file is named exactly `inventario.xlsx` or update the path in `src/main.py:9`:
+       ```python
+       RUTA_INVENTARIO = "data/your-file-name.xlsx"
+       ```
+
+    <Note>
+      File paths are case-sensitive on Linux/macOS. Ensure the filename matches exactly.
+    </Note>
+  </Accordion>
+
+  <Accordion title="BadZipFile: File is not a zip file">
+    **Problem:** The Excel file is corrupted or in an incompatible format.
+
+    **Solution:**
+
+    1. Verify the file is a valid Excel file (`.xlsx` format, not `.xls`):
+       - Open the file in Excel/LibreOffice
+       - Save it as `.xlsx` format (Excel Workbook)
+
+    2. Check if the file is actually an Excel file:
+       ```bash
+       file data/inventario.xlsx
+       ```
+       Should output: `Microsoft Excel 2007+`
+
+    3. If the file is damaged, try opening and re-saving it
+
+    <Warning>
+      The system requires `.xlsx` format (Excel 2007+). Older `.xls` files are not supported by `openpyxl`.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="KeyError: 'stock_actual' or 'ventas_mensuales'">
+    **Problem:** Required columns are missing from the input Excel file.
+
+    **Solution:**
+
+    Your Excel file must include these exact column names:
+    - `producto` — Product name
+    - `stock_actual` — Current stock quantity
+    - `stock_minimo` — Minimum stock threshold
+    - `ventas_mensuales` — Monthly sales volume
+
+    Example structure:
+    ```
+    | producto | stock_actual | stock_minimo | ventas_mensuales |
+    |----------|--------------|--------------|------------------|
+    | Laptop   | 45           | 20           | 150              |
+    | Mouse    | 10           | 30           | 200              |
+    ```
+
+    <Tip>
+      Column names are case-sensitive. Ensure they match exactly as shown above.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="SMTPAuthenticationError: Username and Password not accepted">
+    **Problem:** Email credentials are incorrect or app-specific password is required.
+
+    **Solution:**
+
+    1. **For Gmail users**, enable 2-factor authentication and generate an app password:
+       - Go to [Google Account Security](https://myaccount.google.com/security)
+       - Enable 2-Step Verification
+       - Generate an App Password for "Mail"
+       - Use the 16-character app password in your `.env` file
+
+    2. Verify your `.env` file contains valid credentials:
+       ```bash
+       EMAIL_REMITENTE=your-email@gmail.com
+       EMAIL_PASSWORD=your-app-password
+       EMAIL_DESTINATARIO=recipient@email.com
+       ```
+
+    3. For non-Gmail accounts, update the SMTP server in `src/emailer.py:30`:
+       ```python
+       with smtplib.SMTP_SSL("smtp.outlook.com", 465) as smtp:
+       ```
+
+    <Note>
+      The system is configured for Gmail by default. Other providers may use different SMTP servers and ports.
+    </Note>
+  </Accordion>
+
+  <Accordion title="SMTPServerDisconnected: Connection unexpectedly closed">
+    **Problem:** SMTP connection is blocked by firewall or using wrong port.
+
+    **Solution:**
+
+    1. Check your firewall allows outbound connections on port 465
+
+    2. Try alternative SMTP configuration using STARTTLS (port 587):
+       ```python
+       # In src/emailer.py, replace line 30 with:
+       with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+           smtp.starttls()
+           smtp.login(remitente, password)
+           smtp.send_message(mensaje)
+       ```
+
+    3. Verify your network allows SMTP traffic:
+       ```bash
+       telnet smtp.gmail.com 465
+       ```
+  </Accordion>
+
+  <Accordion title="ModuleNotFoundError: No module named 'pandas'">
+    **Problem:** Required Python dependencies are not installed.
+
+    **Solution:**
+
+    1. Install all dependencies from `requirements.txt`:
+       ```bash
+       pip install -r requirements.txt
+       ```
+
+    2. Verify Python version (requires Python 3.6+):
+       ```bash
+       python --version
+       ```
+
+    3. If using a virtual environment, ensure it's activated:
+       ```bash
+       source venv/bin/activate  # On Linux/macOS
+       venv\Scripts\activate     # On Windows
+       ```
+
+    4. Install specific missing package:
+       ```bash
+       pip install pandas openpyxl matplotlib numpy python-dotenv
+       ```
+
+    <Tip>
+      Always use a virtual environment to avoid dependency conflicts.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="PermissionError: Permission denied: 'output/reporte_inventario.xlsx'">
+    **Problem:** The output file is open in Excel or lacks write permissions.
+
+    **Solution:**
+
+    1. Close the Excel file if it's currently open
+
+    2. Check file permissions:
+       ```bash
+       ls -l output/reporte_inventario.xlsx
+       ```
+
+    3. Grant write permissions if needed:
+       ```bash
+       chmod u+w output/reporte_inventario.xlsx
+       ```
+
+    4. Remove the file and regenerate it:
+       ```bash
+       rm output/reporte_inventario.xlsx
+       python src/main.py
+       ```
+  </Accordion>
+
+  <Accordion title="ValueError: All arrays must be of the same length">
+    **Problem:** Data inconsistency in the Excel file (missing values or irregular rows).
+
+    **Solution:**
+
+    1. Check for empty rows in your Excel file and remove them
+
+    2. Ensure all required columns have values for every product
+
+    3. Add validation to handle missing data in `src/loader.py`:
+       ```python
+       def cargar_inventario(ruta: str) -> pd.DataFrame:
+           try:
+               df = pd.read_excel(ruta)
+               # Remove empty rows
+               df = df.dropna(how='all')
+               # Fill missing numeric values with 0
+               df = df.fillna(0)
+               print("✅ Inventario cargado correctamente")
+               return df
+           except Exception as e:
+               print(f"❌ Error al cargar inventario: {e}")
+               raise
+       ```
+  </Accordion>
+
+  <Accordion title="Email sent but attachment is missing">
+    **Problem:** The report file doesn't exist when the email is sent.
+
+    **Solution:**
+
+    1. Verify the file was generated before sending:
+       ```bash
+       ls -l output/reporte_inventario.xlsx
+       ```
+
+    2. Add validation in `src/main.py` before calling `enviar_reporte`:
+       ```python
+       import os
+
+       # After generar_reporte_excel()
+       if not os.path.exists(RUTA_REPORTE):
+           print("❌ Error: El reporte no fue generado")
+           return
+
+       # Proceed to send email
+       enviar_reporte(...)
+       ```
+
+    3. Check for errors during report generation in the console output
+  </Accordion>
+</AccordionGroup>
+
+## Debugging Tips
+
+<Steps>
+  <Step title="Enable Verbose Output">
+    Add debugging statements to track execution flow:
+
+    ```python
+    # In src/main.py
+    def main():
+        print("[DEBUG] Iniciando procesamiento...")
+        df = cargar_inventario(RUTA_INVENTARIO)
+        print(f"[DEBUG] Filas cargadas: {len(df)}")
+        
+        df = clasificacion_abc(df)
+        print(f"[DEBUG] Categorías ABC: {df['categoria_abc'].value_counts().to_dict()}")
+        
+        df = evaluar_riesgo_y_reposicion(df)
+        print(f"[DEBUG] Estados: {df['estado_stock'].value_counts().to_dict()}")
+    ```
+  </Step>
+
+  <Step title="Validate Data at Each Stage">
+    Inspect DataFrames between processing steps:
+
+    ```python
+    # After each transformation
+    print(df.head())           # First 5 rows
+    print(df.info())           # Column types and null counts
+    print(df.describe())       # Statistical summary
+    print(df.columns.tolist()) # All column names
+    ```
+  </Step>
+
+  <Step title="Check Output Files">
+    Verify generated files are valid:
+
+    ```bash
+    # Check if files exist
+    ls -lh output/reporte_inventario.xlsx
+    ls -lh output/graficos/*.png
+
+    # View file sizes
+    du -sh output/*
+    ```
+  </Step>
+
+  <Step title="Test Individual Modules">
+    Run modules independently to isolate issues:
+
+    ```python
+    # test_loader.py
+    from loader import cargar_inventario
+    
+    df = cargar_inventario("data/inventario.xlsx")
+    print(df.head())
+    print(f"Loaded {len(df)} products successfully")
+    ```
+
+    ```bash
+    python test_loader.py
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+If email functionality is not working, verify your `.env` file:
+
+<CodeGroup>
+```bash .env (Template)
+EMAIL_REMITENTE=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password
+EMAIL_DESTINATARIO=recipient@email.com
+```
+
+```bash Validation Script
+# check_env.py
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+required = ["EMAIL_REMITENTE", "EMAIL_PASSWORD", "EMAIL_DESTINATARIO"]
+for var in required:
+    value = os.getenv(var)
+    if value:
+        print(f"✅ {var}: {value[:3]}...")
+    else:
+        print(f"❌ {var}: NOT SET")
+```
+</CodeGroup>
+
+```bash
+python check_env.py
+```
+
+## Getting Help
+
+If you encounter an issue not covered here:
+
+1. **Check the logs** — Review console output for error messages
+2. **Verify file paths** — Ensure all input/output paths are correct
+3. **Test dependencies** — Confirm all packages are installed correctly
+4. **Review the code** — Check `src/` files for hardcoded paths or configurations
+
+<Card title="Module Reference" icon="code" href="/reference/modules" horizontal>
+  Review detailed documentation for all system modules and functions
+</Card>

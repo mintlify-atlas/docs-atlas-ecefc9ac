@@ -1,0 +1,113 @@
+---
+title: Introduction
+description: Learn about the automated inventory management system and how it helps optimize your business operations
+---
+
+## What is the Automated Inventory Management System?
+
+This system is a **Python-based automated solution** for intelligent inventory control that eliminates manual processes and reduces human error in inventory management. It analyzes your inventory data, detects critical products, recommends restocking quantities, and generates executive reports—all without manual intervention.
+
+## Business Problems It Solves
+
+Many businesses struggle with manual inventory control, which creates several operational challenges:
+
+<CardGroup cols={2}>
+  <Card title="Time-Consuming Operations" icon="clock">
+    Manual inventory analysis wastes valuable time that could be spent on strategic decisions
+  </Card>
+  <Card title="Human Error" icon="triangle-exclamation">
+    Manual data entry and analysis lead to mistakes that can disrupt operations
+  </Card>
+  <Card title="Missed Alerts" icon="bell-slash">
+    Without automated monitoring, you may not detect stockouts until it's too late
+  </Card>
+  <Card title="Inconsistent Reports" icon="file-circle-xmark">
+    Manual reporting produces inconsistent formats and delays critical information
+  </Card>
+</CardGroup>
+
+This system **automates the entire process**—from reading inventory data to delivering the final report.
+
+## Key Capabilities
+
+The system provides comprehensive inventory intelligence through automated workflows:
+
+<Steps>
+  <Step title="Automatic Data Loading">
+    Reads inventory data from Excel files in the `data/` folder
+  </Step>
+  
+  <Step title="ABC Classification">
+    Categorizes products by sales volume using the proven ABC methodology:
+    - **Category A**: High-rotation critical products (top 70% of sales)
+    - **Category B**: Medium-rotation products (70-90% of sales)
+    - **Category C**: Low-rotation products (remaining 10% of sales)
+  </Step>
+  
+  <Step title="Stock Status Evaluation">
+    Automatically assesses inventory levels and assigns status:
+    - **OK**: Healthy stock levels
+    - **RIESGO**: Stock at risk (≤120% of minimum)
+    - **CRÍTICO**: Critical stock shortage (≤minimum threshold)
+  </Step>
+  
+  <Step title="Intelligent Restocking Recommendations">
+    Calculates optimal reorder quantities based on:
+    - Current stock levels
+    - Minimum stock thresholds
+    - Monthly sales velocity
+  </Step>
+  
+  <Step title="Executive Reports">
+    Generates multi-sheet Excel reports with:
+    - Complete inventory analysis
+    - Critical products requiring immediate attention
+    - Products at risk of stockout
+  </Step>
+  
+  <Step title="Visual Analytics">
+    Creates business charts automatically:
+    - Inventory status distribution (bar chart)
+    - ABC classification breakdown (pie chart)
+  </Step>
+  
+  <Step title="Email Automation">
+    Sends reports via email without human intervention (optional)
+  </Step>
+</Steps>
+
+## Who Should Use This System?
+
+This system is ideal for:
+
+- **Warehouse Managers** who need real-time inventory insights
+- **Operations Teams** looking to automate repetitive tasks
+- **Small to Medium Businesses** that can't afford expensive ERP systems
+- **Supply Chain Analysts** who need consistent, data-driven reporting
+- **Business Owners** who want to eliminate manual inventory tracking
+
+<Note>
+  The system is designed to be **simple and maintainable**—all you need is Python 3 and an Excel file with your inventory data.
+</Note>
+
+## Technology Stack
+
+Built with industry-standard Python libraries:
+
+- **pandas**: Data manipulation and analysis
+- **openpyxl**: Excel file handling
+- **matplotlib**: Chart generation
+- **numpy**: Numerical computations
+- **python-dotenv**: Environment configuration
+- **smtplib**: Email automation (built-in)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Set up Python and install dependencies
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Run your first inventory analysis in minutes
+  </Card>
+</CardGroup>

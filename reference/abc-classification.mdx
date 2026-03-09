@@ -1,0 +1,198 @@
+---
+title: 'ABC Classification'
+description: 'Pareto-based inventory classification algorithm and implementation'
+icon: 'ranking-star'
+---
+
+## What is ABC Classification?
+
+ABC classification is an **inventory categorization method** based on the **Pareto Principle (80/20 rule)**. It divides products into three categories based on their contribution to total sales revenue:
+
+<CardGroup cols={3}>
+  <Card title="Category A" icon="a" color="#ea5545">
+    **Top 70% of revenue**
+    
+    High-value items requiring close monitoring and tight inventory control
+  </Card>
+  <Card title="Category B" icon="b" color="#f46a9b">
+    **Next 20% of revenue** (70-90%)
+    
+    Moderate-value items with standard control procedures
+  </Card>
+  <Card title="Category C" icon="c" color="#ede15b">
+    **Bottom 10% of revenue** (90-100%)
+    
+    Low-value items with minimal control requirements
+  </Card>
+</CardGroup>
+
+## Implementation Algorithm
+
+The ABC classification is implemented in `analisis.py` using the following algorithm:
+
+### Step-by-Step Process
+
+<Steps>
+  <Step title="Sort by Sales Volume">
+    Products are sorted in **descending order** by `ventas_mensuales` (monthly sales)
+  </Step>
+  
+  <Step title="Calculate Cumulative Percentage">
+    For each product, calculate the cumulative percentage of total sales revenue
+  </Step>
+  
+  <Step title="Assign Category">
+    Apply threshold rules:
+    - **A**: Cumulative ≤ 70%
+    - **B**: Cumulative ≤ 90%
+    - **C**: Cumulative > 90%
+  </Step>
+</Steps>
+
+### Source Code
+
+Here's the actual implementation from `analisis.py`:
+
+```python
+import pandas as pd
+
+def clasificacion_abc(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Clasifica productos según el método ABC usando ventas mensuales.
+    """
+    df = df.copy()
+
+    # Ordenar por ventas
+    df = df.sort_values(by="ventas_mensuales", ascending=False)
+
+    # Total de ventas
+    total_ventas = df["ventas_mensuales"].sum()
+
+    # Porcentaje acumulado
+    df["porcentaje_acumulado"] = df["ventas_mensuales"].cumsum() / total_ventas
+
+    # Clasificación ABC
+    def asignar_categoria(p):
+        if p <= 0.7:
+            return "A"
+        elif p <= 0.9:
+            return "B"
+        else:
+            return "C"
+
+    df["categoria_abc"] = df["porcentaje_acumulado"].apply(asignar_categoria)
+
+    print("✅ Clasificación ABC aplicada")
+    return df
+```
+
+## Thresholds and Parameters
+
+<ParamField path="Category A Threshold" type="float" default="0.7">
+  Products contributing to the top **70% of cumulative revenue**
+  
+  These are your most valuable items — typically 10-20% of total SKUs
+</ParamField>
+
+<ParamField path="Category B Threshold" type="float" default="0.9">
+  Products contributing between **70% and 90% of cumulative revenue**
+  
+  Moderate-value items — typically 20-30% of total SKUs
+</ParamField>
+
+<ParamField path="Category C Range" type="float" default="> 0.9">
+  Products contributing to the final **10% of cumulative revenue**
+  
+  Low-value items — typically 50-70% of total SKUs
+</ParamField>
+
+## Business Logic
+
+### Why ABC Classification Matters
+
+<AccordionGroup>
+  <Accordion title="Inventory Optimization" icon="chart-line">
+    Focus resources on high-value items (Category A) that drive the majority of revenue, while minimizing effort on low-value items (Category C)
+  </Accordion>
+  
+  <Accordion title="Stock Control Policies" icon="boxes-stacked">
+    - **Category A:** Daily monitoring, precise forecasting, small safety stock
+    - **Category B:** Weekly monitoring, moderate safety stock
+    - **Category C:** Monthly monitoring, higher safety stock acceptable
+  </Accordion>
+  
+  <Accordion title="Purchasing Decisions" icon="cart-shopping">
+    Prioritize replenishment orders for Category A items to prevent stockouts of high-revenue products
+  </Accordion>
+</AccordionGroup>
+
+## Use Cases
+
+### Example 1: Identifying Critical Products
+
+```python
+from loader import cargar_inventario
+from analisis import clasificacion_abc
+
+# Load and classify
+df = cargar_inventario("data/inventario.xlsx")
+df = clasificacion_abc(df)
+
+# Filter Category A products
+critical_products = df[df["categoria_abc"] == "A"]
+print(f"High-value products: {len(critical_products)}")
+```
+
+### Example 2: Resource Allocation
+
+```python
+# Allocate monitoring frequency based on category
+def get_monitoring_frequency(category):
+    return {
+        "A": "Daily",
+        "B": "Weekly",
+        "C": "Monthly"
+    }[category]
+
+df["monitoring"] = df["categoria_abc"].apply(get_monitoring_frequency)
+```
+
+## Real Code Example
+
+Here's how the classification is used in the main pipeline (`main.py:17`):
+
+```python
+def main():
+    # Load raw inventory data
+    df = cargar_inventario(RUTA_INVENTARIO)
+    
+    # Apply ABC classification
+    df = clasificacion_abc(df)
+    
+    # Now df contains 'categoria_abc' and 'porcentaje_acumulado' columns
+    # These are used in reports and decision-making
+    df = evaluar_riesgo_y_reposicion(df)
+    generar_reporte_excel(df, RUTA_REPORTE)
+```
+
+## Output Columns
+
+The `clasificacion_abc()` function adds two new columns to the DataFrame:
+
+<ResponseField name="porcentaje_acumulado" type="float">
+  Cumulative percentage of total sales (0.0 to 1.0)
+  
+  **Example:** 0.45 means this product and all higher-selling products account for 45% of total revenue
+</ResponseField>
+
+<ResponseField name="categoria_abc" type="string">
+  Assigned category: "A", "B", or "C"
+  
+  Based on cumulative percentage thresholds
+</ResponseField>
+
+## Performance Considerations
+
+- **Time Complexity:** O(n log n) due to sorting
+- **Space Complexity:** O(n) for cumulative sum calculation
+- Suitable for datasets with up to 100,000+ SKUs

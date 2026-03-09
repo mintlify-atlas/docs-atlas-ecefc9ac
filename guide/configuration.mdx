@@ -1,0 +1,184 @@
+---
+title: Configuration Guide
+description: Learn how to configure the inventory management system with environment variables, email credentials, and file paths
+---
+
+## Overview
+
+The inventory management system uses environment variables for configuration, primarily for email delivery credentials. This guide covers all configuration options available in the system.
+
+## Environment Variables Setup
+
+The system uses the `python-dotenv` library to load configuration from a `.env` file located in the project root directory.
+
+### Creating the .env File
+
+<Steps>
+  <Step title="Create the file">
+    Create a new file named `.env` in the root directory of the project (same level as `src/` folder):
+    
+    ```bash
+    touch .env
+    ```
+  </Step>
+  
+  <Step title="Add email credentials">
+    Open the `.env` file and add your email configuration:
+    
+    ```bash
+    EMAIL_REMITENTE=your-email@gmail.com
+    EMAIL_PASSWORD=your-app-password-here
+    EMAIL_DESTINATARIO=recipient@example.com
+    ```
+  </Step>
+  
+  <Step title="Save the file">
+    Save the `.env` file. The system will automatically load these variables when it runs.
+  </Step>
+</Steps>
+
+<Warning>
+  Never commit the `.env` file to version control. Add it to your `.gitignore` file to prevent accidentally exposing credentials.
+</Warning>
+
+## Configuration Variables
+
+### Email Configuration
+
+These variables are loaded in `src/config.py:6-8`:
+
+| Variable | Description | Required | Example |
+|----------|-------------|----------|----------|
+| `EMAIL_REMITENTE` | Sender email address (Gmail) | Yes* | `inventory@gmail.com` |
+| `EMAIL_PASSWORD` | Gmail app password | Yes* | `abcd efgh ijkl mnop` |
+| `EMAIL_DESTINATARIO` | Recipient email address | Yes* | `manager@company.com` |
+
+<Note>
+  *Required only if you want to enable automatic email delivery. The system will work without these variables, but email sending will be skipped.
+</Note>
+
+### File Paths Configuration
+
+These paths are defined in `src/main.py:9-11` and can be modified if needed:
+
+| Variable | Default Value | Description |
+|----------|---------------|-------------|
+| `RUTA_INVENTARIO` | `data/inventario.xlsx` | Input inventory Excel file |
+| `RUTA_REPORTE` | `output/reporte_inventario.xlsx` | Output report Excel file |
+| `CARPETA_GRAFICOS` | `output/graficos` | Directory for generated charts |
+
+<Tip>
+  The `output/` directory and `output/graficos/` subdirectory are created automatically if they don't exist when the system runs.
+</Tip>
+
+## How Configuration is Loaded
+
+The configuration loading process (from `src/config.py:1-8`):
+
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+EMAIL_REMITENTE = os.getenv("EMAIL_REMITENTE")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+EMAIL_DESTINATARIO = os.getenv("EMAIL_DESTINATARIO")
+```
+
+<Steps>
+  <Step title="Load .env file">
+    The `load_dotenv()` function reads the `.env` file from the project root
+  </Step>
+  
+  <Step title="Parse variables">
+    Environment variables are parsed and made available to the application
+  </Step>
+  
+  <Step title="Access via os.getenv()">
+    Each variable is accessed using `os.getenv()` and stored as a module-level constant
+  </Step>
+</Steps>
+
+## Email Validation
+
+The system validates email configuration before attempting to send emails (from `src/main.py:23-40`):
+
+```python
+if (
+    EMAIL_REMITENTE
+    and EMAIL_PASSWORD
+    and EMAIL_DESTINATARIO
+    and EMAIL_PASSWORD != "la_contraseña_generada"
+    and EMAIL_REMITENTE != "tucuenta@outlook.com"
+    and EMAIL_DESTINATARIO != "destinatario@correo.com"
+):
+    enviar_reporte(...)
+else:
+    print("⚠️ Envío de correo omitido (credenciales no configuradas)")
+```
+
+The system checks that:
+- All three email variables are defined
+- Variables are not set to placeholder/example values
+- Configuration appears to be valid
+
+<Note>
+  If any validation check fails, the system continues running but skips email delivery and displays a warning message.
+</Note>
+
+## Modifying File Paths
+
+To change the default input or output locations, edit the constants in `src/main.py:9-11`:
+
+```python
+RUTA_INVENTARIO = "data/inventario.xlsx"  # Change input path
+RUTA_REPORTE = "output/reporte_inventario.xlsx"  # Change output path
+CARPETA_GRAFICOS = "output/graficos"  # Change graphics folder
+```
+
+<Warning>
+  Ensure the input file exists at the specified path, and that the application has write permissions for the output directory.
+</Warning>
+
+## SMTP Configuration
+
+The system uses Gmail's SMTP server with SSL encryption (configured in `src/emailer.py:30`):
+
+```python
+with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+    smtp.login(remitente, password)
+    smtp.send_message(mensaje)
+```
+
+**SMTP Settings:**
+- **Server:** `smtp.gmail.com`
+- **Port:** `465` (SSL)
+- **Authentication:** Required
+- **Encryption:** SSL/TLS
+
+<Tip>
+  These settings are hardcoded for Gmail. To use a different email provider, you'll need to modify `src/emailer.py:30` with the appropriate SMTP server and port.
+</Tip>
+
+## Configuration Checklist
+
+Before running the system, verify:
+
+- [ ] `.env` file exists in project root
+- [ ] Email credentials are correctly configured
+- [ ] Gmail app password is generated (not regular password)
+- [ ] Input file exists at `data/inventario.xlsx`
+- [ ] Application has write permissions for `output/` directory
+- [ ] All required dependencies are installed (`pip install -r requirements.txt`)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Email Setup" icon="envelope" href="/guide/email-setup">
+    Configure Gmail app passwords and test email delivery
+  </Card>
+  <Card title="Running the System" icon="play" href="/guide/running">
+    Learn how to execute the system and understand the output
+  </Card>
+</CardGroup>

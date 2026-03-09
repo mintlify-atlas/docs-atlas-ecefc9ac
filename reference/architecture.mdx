@@ -1,0 +1,176 @@
+---
+title: 'System Architecture'
+description: 'Overall design, data flow, and ETL pipeline architecture'
+icon: 'sitemap'
+---
+
+## Overview
+
+The inventory management system follows a **sequential ETL (Extract, Transform, Load) pipeline** architecture, processing inventory data through distinct stages to generate actionable insights and automated reports.
+
+## System Components
+
+```mermaid
+graph LR
+    A[Excel Input] --> B[Loader]
+    B --> C[Analysis]
+    C --> D[Decision Engine]
+    D --> E[Reporting]
+    E --> F[Visualization]
+    F --> G[Email Delivery]
+```
+
+## Data Flow
+
+The system processes inventory data through the following stages:
+
+### 1. Data Extraction
+**Module:** `loader.py`
+
+- Loads Excel inventory file into pandas DataFrame
+- Validates data integrity
+- Handles errors gracefully
+
+### 2. Analysis & Classification
+**Module:** `analisis.py`
+
+- Applies ABC classification algorithm
+- Calculates cumulative sales percentages
+- Categorizes products by importance (A, B, C)
+
+### 3. Risk Evaluation & Decision Making
+**Module:** `decisiones.py`
+
+- Evaluates current stock levels vs. minimum thresholds
+- Assigns risk states: OK, RIESGO, CRÍTICO
+- Generates automatic replenishment recommendations
+
+### 4. Report Generation
+**Module:** `reportes.py`
+
+- Creates multi-sheet Excel workbook
+- Separates critical and at-risk products
+- Formats cells for readability
+
+### 5. Visualization
+**Module:** `reportes_graficos.py`
+
+- Generates stock status bar charts
+- Creates ABC classification pie charts
+- Saves charts as PNG files
+
+### 6. Delivery
+**Module:** `emailer.py`
+
+- Sends reports via email (SMTP)
+- Attaches Excel file
+- Optional based on configuration
+
+## ETL Pipeline Stages
+
+<AccordionGroup>
+  <Accordion title="Stage 1: Extract" icon="download">
+    The system loads inventory data from an Excel file (`data/inventario.xlsx`).
+    
+    **Expected columns:**
+    - Product ID
+    - Stock actual (current stock)
+    - Stock mínimo (minimum threshold)
+    - Ventas mensuales (monthly sales)
+  </Accordion>
+
+  <Accordion title="Stage 2: Transform" icon="gears">
+    Data transformation occurs in two phases:
+    
+    **Phase 1: ABC Classification**
+    - Sort products by sales volume
+    - Calculate cumulative revenue percentage
+    - Assign A (top 70%), B (70-90%), C (90-100%) categories
+    
+    **Phase 2: Risk Evaluation**
+    - Compare current stock vs. minimum thresholds
+    - Classify as CRÍTICO, RIESGO, or OK
+    - Calculate recommended replenishment quantities
+  </Accordion>
+
+  <Accordion title="Stage 3: Load" icon="floppy-disk">
+    Results are persisted in multiple formats:
+    
+    - **Excel Report:** Multi-sheet workbook with full inventory, critical items, and at-risk items
+    - **Visualizations:** PNG charts saved to `output/graficos/`
+    - **Email Delivery:** Optional automated delivery to stakeholders
+  </Accordion>
+</AccordionGroup>
+
+## Module Relationships
+
+```python
+# Main orchestration (main.py)
+def main():
+    # Extract
+    df = cargar_inventario(RUTA_INVENTARIO)
+    
+    # Transform
+    df = clasificacion_abc(df)
+    df = evaluar_riesgo_y_reposicion(df)
+    
+    # Load
+    generar_reporte_excel(df, RUTA_REPORTE)
+    generar_graficos(df, CARPETA_GRAFICOS)
+    enviar_reporte(...)
+```
+
+Each module is **stateless** and **pure** — functions take a DataFrame and return a transformed DataFrame without side effects (except I/O operations).
+
+## Design Principles
+
+<CardGroup cols={2}>
+  <Card title="Separation of Concerns" icon="layer-group">
+    Each module handles one specific responsibility in the ETL pipeline
+  </Card>
+  <Card title="Functional Design" icon="function">
+    Pure functions that transform data without hidden state
+  </Card>
+  <Card title="Pipeline Architecture" icon="arrow-right-arrow-left">
+    Sequential data flow through well-defined stages
+  </Card>
+  <Card title="Fail-Fast" icon="triangle-exclamation">
+    Errors are caught early and propagated immediately
+  </Card>
+</CardGroup>
+
+## Configuration
+
+The system uses environment variables for email credentials (`config.py`):
+
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+EMAIL_REMITENTE = os.getenv("EMAIL_REMITENTE")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+EMAIL_DESTINATARIO = os.getenv("EMAIL_DESTINATARIO")
+```
+
+## Error Handling
+
+The system employs a **fail-fast** strategy:
+
+- Loader raises exceptions if Excel file cannot be read
+- Each module prints status messages (✅ success, ❌ error)
+- Email delivery is skipped if credentials are not configured
+
+## Output Structure
+
+```
+output/
+├── reporte_inventario.xlsx
+│   ├── Inventario_Completo
+│   ├── Productos_Criticos
+│   └── Productos_En_Riesgo
+└── graficos/
+    ├── estado_inventario.png
+    └── clasificacion_abc.png
+```

@@ -1,0 +1,653 @@
+---
+title: 'Module API Reference'
+description: 'Complete function signatures, parameters, and return types for all system modules'
+icon: 'code'
+---
+
+## Overview
+
+The inventory management system consists of **6 core modules**, each providing specific functionality in the ETL pipeline:
+
+<CardGroup cols={2}>
+  <Card title="loader" icon="file-import" href="#loader">
+    Data extraction from Excel files
+  </Card>
+  <Card title="analisis" icon="chart-simple" href="#analisis">
+    ABC classification algorithm
+  </Card>
+  <Card title="decisiones" icon="brain" href="#decisiones">
+    Risk evaluation and replenishment logic
+  </Card>
+  <Card title="reportes" icon="file-excel" href="#reportes">
+    Excel report generation
+  </Card>
+  <Card title="reportes_graficos" icon="chart-pie" href="#reportes-graficos">
+    Chart and visualization generation
+  </Card>
+  <Card title="emailer" icon="envelope" href="#emailer">
+    Email delivery service
+  </Card>
+</CardGroup>
+
+---
+
+## loader
+
+<Info>**Module:** `loader.py` | **Purpose:** Extract inventory data from Excel files</Info>
+
+### cargar_inventario()
+
+Loads inventory data from an Excel file into a pandas DataFrame.
+
+```python
+def cargar_inventario(ruta: str) -> pd.DataFrame:
+```
+
+<ParamField path="ruta" type="str" required>
+  Absolute or relative path to the Excel inventory file
+  
+  **Example:** `"data/inventario.xlsx"`
+</ParamField>
+
+<ResponseField name="return" type="pd.DataFrame">
+  DataFrame containing the loaded inventory data
+  
+  **Expected columns:**
+  - `stock_actual`: Current stock quantity
+  - `stock_minimo`: Minimum acceptable stock level
+  - `ventas_mensuales`: Average monthly sales volume
+  - Additional product metadata (name, ID, etc.)
+</ResponseField>
+
+<ResponseField name="raises" type="Exception">
+  Raised if the file cannot be read or parsed
+  
+  Error message includes the underlying exception details
+</ResponseField>
+
+#### Usage Example
+
+```python
+from loader import cargar_inventario
+
+df = cargar_inventario("data/inventario.xlsx")
+print(f"Loaded {len(df)} products")
+# Output: ✅ Inventario cargado correctamente
+#         Loaded 150 products
+```
+
+#### Source Code
+
+<CodeGroup>
+```python loader.py
+import pandas as pd
+
+def cargar_inventario(ruta: str) -> pd.DataFrame:
+    """
+    Carga el archivo de inventario desde Excel.
+    """
+    try:
+        df = pd.read_excel(ruta)
+        print("✅ Inventario cargado correctamente")
+        return df
+    except Exception as e:
+        print(f"❌ Error al cargar inventario: {e}")
+        raise
+```
+</CodeGroup>
+
+---
+
+## analisis
+
+<Info>**Module:** `analisis.py` | **Purpose:** Perform ABC classification analysis</Info>
+
+### clasificacion_abc()
+
+Classifies products using the ABC method based on cumulative sales contribution.
+
+```python
+def clasificacion_abc(df: pd.DataFrame) -> pd.DataFrame:
+```
+
+<ParamField path="df" type="pd.DataFrame" required>
+  DataFrame containing inventory data with a `ventas_mensuales` column
+  
+  **Required column:** `ventas_mensuales` (monthly sales volume)
+</ParamField>
+
+<ResponseField name="return" type="pd.DataFrame">
+  DataFrame with two new columns added:
+  - `porcentaje_acumulado`: Cumulative sales percentage (0.0 to 1.0)
+  - `categoria_abc`: Category assignment ("A", "B", or "C")
+  
+  Original DataFrame is **not modified** (uses `.copy()`)
+</ResponseField>
+
+#### Classification Logic
+
+- **Category A:** Top 70% of revenue (`porcentaje_acumulado ≤ 0.7`)
+- **Category B:** Next 20% of revenue (`0.7 < porcentaje_acumulado ≤ 0.9`)
+- **Category C:** Remaining 10% (`porcentaje_acumulado > 0.9`)
+
+#### Usage Example
+
+```python
+from analisis import clasificacion_abc
+
+df = clasificacion_abc(df)
+
+# Analyze distribution
+print(df["categoria_abc"].value_counts())
+# Output: A    25
+#         B    45
+#         C    80
+```
+
+#### Source Code
+
+<CodeGroup>
+```python analisis.py
+import pandas as pd
+
+def clasificacion_abc(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Clasifica productos según el método ABC usando ventas mensuales.
+    """
+    df = df.copy()
+
+    # Ordenar por ventas
+    df = df.sort_values(by="ventas_mensuales", ascending=False)
+
+    # Total de ventas
+    total_ventas = df["ventas_mensuales"].sum()
+
+    # Porcentaje acumulado
+    df["porcentaje_acumulado"] = df["ventas_mensuales"].cumsum() / total_ventas
+
+    # Clasificación ABC
+    def asignar_categoria(p):
+        if p <= 0.7:
+            return "A"
+        elif p <= 0.9:
+            return "B"
+        else:
+            return "C"
+
+    df["categoria_abc"] = df["porcentaje_acumulado"].apply(asignar_categoria)
+
+    print("✅ Clasificación ABC aplicada")
+    return df
+```
+</CodeGroup>
+
+---
+
+## decisiones
+
+<Info>**Module:** `decisiones.py` | **Purpose:** Evaluate stock risk and generate replenishment recommendations</Info>
+
+### evaluar_riesgo_y_reposicion()
+
+Analyzes current stock levels and calculates recommended replenishment quantities.
+
+```python
+def evaluar_riesgo_y_reposicion(df: pd.DataFrame) -> pd.DataFrame:
+```
+
+<ParamField path="df" type="pd.DataFrame" required>
+  DataFrame with inventory data
+  
+  **Required columns:**
+  - `stock_actual`: Current stock quantity
+  - `stock_minimo`: Minimum acceptable stock level
+  - `ventas_mensuales`: Monthly sales volume
+</ParamField>
+
+<ResponseField name="return" type="pd.DataFrame">
+  DataFrame with two new columns:
+  - `estado_stock`: Risk state ("CRITICO", "RIESGO", or "OK")
+  - `reponer_cantidad`: Recommended replenishment quantity (0 or positive integer)
+</ResponseField>
+
+#### Risk States
+
+<Tabs>
+  <Tab title="CRÍTICO">
+    **Condition:** `stock_actual ≤ stock_minimo`
+    
+    Immediate replenishment required to prevent stockouts
+  </Tab>
+  <Tab title="RIESGO">
+    **Condition:** `stock_minimo < stock_actual ≤ stock_minimo × 1.2`
+    
+    Proactive replenishment recommended within current purchasing cycle
+  </Tab>
+  <Tab title="OK">
+    **Condition:** `stock_actual > stock_minimo × 1.2`
+    
+    Stock levels are healthy; no action required
+  </Tab>
+</Tabs>
+
+#### Replenishment Formula
+
+```python
+reponer_cantidad = max(ventas_mensuales - stock_actual, 0)
+```
+
+Applies only to products in CRÍTICO or RIESGO states.
+
+#### Usage Example
+
+```python
+from decisiones import evaluar_riesgo_y_reposicion
+
+df = evaluar_riesgo_y_reposicion(df)
+
+# Get critical items
+critical = df[df["estado_stock"] == "CRITICO"]
+print(f"Critical items: {len(critical)}")
+print(f"Total units to order: {critical['reponer_cantidad'].sum()}")
+```
+
+#### Source Code
+
+<CodeGroup>
+```python decisiones.py
+import pandas as pd
+
+def evaluar_riesgo_y_reposicion(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Evalúa el estado del inventario y genera recomendaciones automáticas.
+    """
+    df = df.copy()
+
+    # Estado de stock
+    def estado_stock(row):
+        if row["stock_actual"] <= row["stock_minimo"]:
+            return "CRITICO"
+        elif row["stock_actual"] <= row["stock_minimo"] * 1.2:
+            return "RIESGO"
+        else:
+            return "OK"
+
+    df["estado_stock"] = df.apply(estado_stock, axis=1)
+
+    # Recomendación de reposición
+    def recomendar_reposicion(row):
+        if row["estado_stock"] in ["CRITICO", "RIESGO"]:
+            return max(row["ventas_mensuales"] - row["stock_actual"], 0)
+        return 0
+
+    df["reponer_cantidad"] = df.apply(recomendar_reposicion, axis=1)
+
+    print("✅ Riesgo evaluado y reposición recomendada")
+    return df
+```
+</CodeGroup>
+
+---
+
+## reportes
+
+<Info>**Module:** `reportes.py` | **Purpose:** Generate formatted Excel reports</Info>
+
+### generar_reporte_excel()
+
+Creates a multi-sheet Excel workbook with full inventory, critical items, and at-risk items.
+
+```python
+def generar_reporte_excel(df: pd.DataFrame, ruta_salida: str) -> None:
+```
+
+<ParamField path="df" type="pd.DataFrame" required>
+  Processed DataFrame containing all analysis columns
+  
+  **Expected columns:**
+  - `estado_stock`: Used to filter critical and at-risk items
+  - All original and computed columns (ABC category, replenishment qty, etc.)
+</ParamField>
+
+<ParamField path="ruta_salida" type="str" required>
+  Output path for the Excel file
+  
+  **Example:** `"output/reporte_inventario.xlsx"`
+</ParamField>
+
+<ResponseField name="return" type="None">
+  No return value. File is written to disk.
+</ResponseField>
+
+#### Excel Workbook Structure
+
+<AccordionGroup>
+  <Accordion title="Sheet 1: Inventario_Completo">
+    Contains all products with all computed columns
+  </Accordion>
+  <Accordion title="Sheet 2: Productos_Criticos">
+    Filtered view of products with `estado_stock == "CRITICO"`
+  </Accordion>
+  <Accordion title="Sheet 3: Productos_En_Riesgo">
+    Filtered view of products with `estado_stock == "RIESGO"`
+  </Accordion>
+</AccordionGroup>
+
+#### Formatting Features
+
+- Auto-adjusted column widths based on content
+- Centered cell alignment (horizontal and vertical)
+- Professional appearance for stakeholder review
+
+#### Usage Example
+
+```python
+from reportes import generar_reporte_excel
+
+generar_reporte_excel(df, "output/reporte_inventario.xlsx")
+# Output: ✅ Reporte Excel generado en output/reporte_inventario.xlsx
+```
+
+#### Source Code
+
+<CodeGroup>
+```python reportes.py
+import pandas as pd
+from openpyxl import load_workbook
+from openpyxl.styles import Alignment
+
+def generar_reporte_excel(df: pd.DataFrame, ruta_salida: str):
+    with pd.ExcelWriter(ruta_salida, engine="openpyxl") as writer:
+        df.to_excel(writer, sheet_name="Inventario_Completo", index=False)
+
+        criticos = df[df["estado_stock"] == "CRITICO"]
+        criticos.to_excel(writer, sheet_name="Productos_Criticos", index=False)
+
+        riesgo = df[df["estado_stock"] == "RIESGO"]
+        riesgo.to_excel(writer, sheet_name="Productos_En_Riesgo", index=False)
+
+    wb = load_workbook(ruta_salida)
+    for ws in wb.worksheets:
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                # Ajustar ancho
+                if cell.value:
+                    max_length = max(max_length, len(str(cell.value)))
+                # Centrar contenido
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            ws.column_dimensions[column].width = max_length + 2
+
+    wb.save(ruta_salida)
+    print(f"✅ Reporte Excel generado en {ruta_salida}")
+```
+</CodeGroup>
+
+---
+
+## reportes_graficos
+
+<Info>**Module:** `reportes_graficos.py` | **Purpose:** Generate visualization charts</Info>
+
+### generar_graficos()
+
+Creates PNG charts for stock status and ABC classification distribution.
+
+```python
+def generar_graficos(df: pd.DataFrame, carpeta_salida: str) -> None:
+```
+
+<ParamField path="df" type="pd.DataFrame" required>
+  Processed DataFrame with analysis results
+  
+  **Required columns:**
+  - `estado_stock`: For stock status chart
+  - `categoria_abc`: For ABC classification chart
+</ParamField>
+
+<ParamField path="carpeta_salida" type="str" required>
+  Output directory for PNG files (created if it doesn't exist)
+  
+  **Example:** `"output/graficos"`
+</ParamField>
+
+<ResponseField name="return" type="None">
+  No return value. PNG files are written to disk:
+  - `estado_inventario.png`: Bar chart of stock states
+  - `clasificacion_abc.png`: Pie chart of ABC categories
+</ResponseField>
+
+#### Generated Charts
+
+<Tabs>
+  <Tab title="Stock Status (Bar Chart)">
+    **File:** `estado_inventario.png`
+    
+    **Type:** Bar chart
+    
+    **Data:** Count of products in each state (CRÍTICO, RIESGO, OK)
+    
+    **Axes:**
+    - X: Stock state
+    - Y: Number of products
+  </Tab>
+  <Tab title="ABC Classification (Pie Chart)">
+    **File:** `clasificacion_abc.png`
+    
+    **Type:** Pie chart with percentages
+    
+    **Data:** Distribution of products across A, B, C categories
+    
+    **Format:** Percentage labels with 1 decimal place
+  </Tab>
+</Tabs>
+
+#### Usage Example
+
+```python
+from reportes_graficos import generar_graficos
+
+generar_graficos(df, "output/graficos")
+# Output: ✅ Gráficos generados correctamente
+# Creates: output/graficos/estado_inventario.png
+#          output/graficos/clasificacion_abc.png
+```
+
+#### Source Code
+
+<CodeGroup>
+```python reportes_graficos.py
+import os
+import matplotlib.pyplot as plt
+import pandas as pd
+
+def generar_graficos(df: pd.DataFrame, carpeta_salida: str):
+    os.makedirs(carpeta_salida, exist_ok=True)
+
+    # ---- Gráfico 1: Estado del stock ----
+    estado_counts = df["estado_stock"].value_counts()
+
+    plt.figure()
+    estado_counts.plot(kind="bar")
+    plt.title("Estado del Inventario")
+    plt.xlabel("Estado")
+    plt.ylabel("Cantidad de Productos")
+    plt.tight_layout()
+    plt.savefig(os.path.join(carpeta_salida, "estado_inventario.png"))
+    plt.close()
+
+    # ---- Gráfico 2: Clasificación ABC ----
+    abc_counts = df["categoria_abc"].value_counts()
+
+    plt.figure()
+    abc_counts.plot(kind="pie", autopct="%1.1f%%")
+    plt.title("Clasificación ABC del Inventario")
+    plt.ylabel("")
+    plt.tight_layout()
+    plt.savefig(os.path.join(carpeta_salida, "clasificacion_abc.png"))
+    plt.close()
+
+    print("✅ Gráficos generados correctamente")
+```
+</CodeGroup>
+
+---
+
+## emailer
+
+<Info>**Module:** `emailer.py` | **Purpose:** Send reports via email using SMTP</Info>
+
+### enviar_reporte()
+
+Sends the generated Excel report via email with automatic attachment handling.
+
+```python
+def enviar_reporte(
+    remitente: str,
+    password: str,
+    destinatario: str,
+    ruta_excel: str,
+) -> None:
+```
+
+<ParamField path="remitente" type="str" required>
+  Sender's email address (Gmail account)
+  
+  **Example:** `"reports@company.com"`
+</ParamField>
+
+<ParamField path="password" type="str" required>
+  Gmail **app password** (not regular account password)
+  
+  <Warning>
+    Must be a [Google App Password](https://support.google.com/accounts/answer/185833), not your regular Gmail password
+  </Warning>
+</ParamField>
+
+<ParamField path="destinatario" type="str" required>
+  Recipient's email address
+  
+  **Example:** `"manager@company.com"`
+</ParamField>
+
+<ParamField path="ruta_excel" type="str" required>
+  Path to the Excel file to attach
+  
+  **Example:** `"output/reporte_inventario.xlsx"`
+</ParamField>
+
+<ResponseField name="return" type="None">
+  No return value. Email is sent via SMTP.
+</ResponseField>
+
+<ResponseField name="raises" type="smtplib.SMTPException">
+  Raised if authentication fails or email cannot be sent
+</ResponseField>
+
+#### Email Structure
+
+- **Subject:** `📦 Reporte Automático de Inventario`
+- **Body:** Plain text notification message
+- **Attachment:** Excel file with original filename
+
+#### SMTP Configuration
+
+- **Server:** `smtp.gmail.com`
+- **Port:** `465` (SSL)
+- **Protocol:** SMTP_SSL
+
+#### Usage Example
+
+```python
+from emailer import enviar_reporte
+import os
+
+enviar_reporte(
+    remitente=os.getenv("EMAIL_REMITENTE"),
+    password=os.getenv("EMAIL_PASSWORD"),
+    destinatario="manager@company.com",
+    ruta_excel="output/reporte_inventario.xlsx"
+)
+# Output: ✅ Reporte enviado por correo
+```
+
+#### Source Code
+
+<CodeGroup>
+```python emailer.py
+import smtplib
+from email.message import EmailMessage
+import os
+
+def enviar_reporte(
+    remitente: str,
+    password: str,
+    destinatario: str,
+    ruta_excel: str,
+):
+    mensaje = EmailMessage()
+    mensaje["Subject"] = "📦 Reporte Automático de Inventario"
+    mensaje["From"] = remitente
+    mensaje["To"] = destinatario
+
+    mensaje.set_content(
+        "Este correo fue generado automáticamente.\n"
+        "Se adjunta el reporte actualizado de inventario con alertas y recomendaciones."
+    )
+
+    with open(ruta_excel, "rb") as f:
+        mensaje.add_attachment(
+            f.read(),
+            maintype="application",
+            subtype="octet-stream",
+            filename=os.path.basename(ruta_excel),
+        )
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(remitente, password)
+        smtp.send_message(mensaje)
+
+    print("✅ Reporte enviado por correo")
+```
+</CodeGroup>
+
+---
+
+## Complete Pipeline Example
+
+Here's how all modules work together in `main.py`:
+
+```python
+from loader import cargar_inventario
+from analisis import clasificacion_abc
+from decisiones import evaluar_riesgo_y_reposicion
+from reportes import generar_reporte_excel
+from reportes_graficos import generar_graficos
+from emailer import enviar_reporte
+from config import EMAIL_REMITENTE, EMAIL_PASSWORD, EMAIL_DESTINATARIO
+
+def main():
+    # 1. Extract
+    df = cargar_inventario("data/inventario.xlsx")
+    
+    # 2. Transform
+    df = clasificacion_abc(df)
+    df = evaluar_riesgo_y_reposicion(df)
+    
+    # 3. Load
+    generar_reporte_excel(df, "output/reporte_inventario.xlsx")
+    generar_graficos(df, "output/graficos")
+    
+    # 4. Deliver (optional)
+    if EMAIL_REMITENTE and EMAIL_PASSWORD and EMAIL_DESTINATARIO:
+        enviar_reporte(
+            EMAIL_REMITENTE,
+            EMAIL_PASSWORD,
+            EMAIL_DESTINATARIO,
+            "output/reporte_inventario.xlsx"
+        )
+
+if __name__ == "__main__":
+    main()
+```

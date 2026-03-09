@@ -1,0 +1,142 @@
+---
+title: Installation
+description: Set up the automated inventory management system on your machine
+---
+
+## System Requirements
+
+Before installing the system, ensure you have the following:
+
+<CardGroup cols={2}>
+  <Card title="Python 3" icon="python">
+    Python 3.7 or higher is required
+  </Card>
+  <Card title="pip" icon="box">
+    Python package manager (included with Python)
+  </Card>
+</CardGroup>
+
+### Check Your Python Version
+
+Verify that Python 3 is installed on your system:
+
+```bash
+python --version
+# or
+python3 --version
+```
+
+You should see output like `Python 3.x.x`. If not, [download Python](https://www.python.org/downloads/) before continuing.
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone or Download the Repository">
+    Get the source code onto your local machine:
+    
+    ```bash
+    git clone <repository-url>
+    cd <repository-name>
+    ```
+    
+    Or download and extract the ZIP file from your repository.
+  </Step>
+  
+  <Step title="Install Dependencies">
+    Install all required Python packages using the `requirements.txt` file:
+    
+    ```bash
+    pip install -r requirements.txt
+    ```
+    
+    This installs:
+    - `pandas` - Data analysis library
+    - `openpyxl` - Excel file support
+    - `matplotlib` - Chart generation
+    - `numpy` - Numerical operations
+    - `python-dotenv` - Environment variable management
+    
+    <Note>
+      If you encounter permission errors, try using `pip install --user -r requirements.txt`
+    </Note>
+  </Step>
+  
+  <Step title="Understand the Directory Structure">
+    The system expects the following structure:
+    
+    ```plaintext
+    .
+    ├── src/
+    │   ├── main.py              # Entry point
+    │   ├── loader.py            # Data loading
+    │   ├── analisis.py          # ABC classification
+    │   ├── decisiones.py        # Risk evaluation
+    │   ├── reportes.py          # Excel report generation
+    │   ├── reportes_graficos.py # Chart generation
+    │   ├── emailer.py           # Email automation
+    │   └── config.py            # Configuration
+    ├── data/                    # Input folder (create this)
+    │   └── inventario.xlsx      # Your inventory file
+    ├── output/                  # Auto-created on first run
+    │   ├── reporte_inventario.xlsx
+    │   └── graficos/
+    └── requirements.txt
+    ```
+    
+    <Warning>
+      The `output/` folder and `output/graficos/` subfolder are created automatically when you run the system. You don't need to create them manually.
+    </Warning>
+  </Step>
+  
+  <Step title="Create the Data Folder">
+    Create a `data/` folder in the project root to store your inventory files:
+    
+    ```bash
+    mkdir data
+    ```
+    
+    This is where you'll place your `inventario.xlsx` file.
+  </Step>
+  
+  <Step title="Configure Email (Optional)">
+    If you want automatic email delivery, create a `.env` file in the project root:
+    
+    ```bash
+    touch .env
+    ```
+    
+    Add your email credentials:
+    
+    ```plaintext
+    EMAIL_REMITENTE=your-email@gmail.com
+    EMAIL_PASSWORD=your-app-password
+    EMAIL_DESTINATARIO=recipient@example.com
+    ```
+    
+    <Warning>
+      For Gmail, you must use an [App Password](https://support.google.com/accounts/answer/185833), not your regular password. The system uses Gmail's SMTP server (`smtp.gmail.com:465`) by default.
+    </Warning>
+    
+    <Note>
+      Email is **optional**. If you skip this step, the system will generate reports locally and skip email delivery with a warning message.
+    </Note>
+  </Step>
+</Steps>
+
+## Verify Installation
+
+Confirm that all dependencies are installed correctly:
+
+```bash
+python -c "import pandas, openpyxl, matplotlib, numpy; print('All dependencies installed successfully')"
+```
+
+If you see the success message, you're ready to proceed!
+
+## What's Next?
+
+Your system is now installed and ready to use. The next step is to prepare your inventory data and run your first analysis.
+
+<Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+  Learn how to create your inventory file and run your first analysis
+</Card>

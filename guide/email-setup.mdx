@@ -1,0 +1,397 @@
+---
+title: Email Setup Guide
+description: Configure Gmail SMTP for automatic report delivery, including app passwords setup and troubleshooting
+---
+
+## Overview
+
+The inventory management system can automatically send Excel reports via email using Gmail's SMTP server. This guide covers the complete setup process.
+
+## Prerequisites
+
+- Gmail account
+- 2-Factor Authentication enabled on your Gmail account
+- Access to Google Account settings
+
+<Warning>
+  Gmail requires 2-Factor Authentication (2FA) to be enabled before you can generate app passwords. Regular Gmail passwords will not work with SMTP.
+</Warning>
+
+## Gmail Configuration
+
+### Step 1: Enable 2-Factor Authentication
+
+If you haven't already enabled 2FA:
+
+<Steps>
+  <Step title="Go to Google Account Security">
+    Visit [https://myaccount.google.com/security](https://myaccount.google.com/security)
+  </Step>
+  
+  <Step title="Enable 2-Step Verification">
+    Under "Signing in to Google", click on "2-Step Verification" and follow the setup wizard
+  </Step>
+  
+  <Step title="Complete verification">
+    Add a phone number and verify it to complete 2FA setup
+  </Step>
+</Steps>
+
+### Step 2: Generate App Password
+
+<Steps>
+  <Step title="Access App Passwords page">
+    Visit [https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+    
+    Or navigate: Google Account → Security → 2-Step Verification → App passwords
+  </Step>
+  
+  <Step title="Create new app password">
+    - Select app: **Mail**
+    - Select device: **Other (Custom name)**
+    - Enter name: `Inventory System` or similar
+    - Click **Generate**
+  </Step>
+  
+  <Step title="Copy the password">
+    A 16-character password will be displayed (format: `xxxx xxxx xxxx xxxx`)
+    
+    **Copy this password immediately** - you won't be able to see it again!
+  </Step>
+</Steps>
+
+<Tip>
+  Store the app password securely. If you lose it, you'll need to generate a new one.
+</Tip>
+
+## Environment File Configuration
+
+### Create .env File
+
+Create a file named `.env` in the project root directory:
+
+```bash
+touch .env
+```
+
+### Add Email Credentials
+
+Open `.env` and add your configuration:
+
+```bash
+EMAIL_REMITENTE=your-email@gmail.com
+EMAIL_PASSWORD=xxxx xxxx xxxx xxxx
+EMAIL_DESTINATARIO=recipient@example.com
+```
+
+**Example:**
+```bash
+EMAIL_REMITENTE=inventory.system@gmail.com
+EMAIL_PASSWORD=abcd efgh ijkl mnop
+EMAIL_DESTINATARIO=manager@company.com
+```
+
+<Note>
+  - `EMAIL_REMITENTE`: Your Gmail address
+  - `EMAIL_PASSWORD`: The 16-character app password (spaces are optional)
+  - `EMAIL_DESTINATARIO`: Where reports should be sent
+</Note>
+
+### Verify Configuration
+
+The system validates credentials before sending (from `src/main.py:23-40`):
+
+```python
+if (
+    EMAIL_REMITENTE
+    and EMAIL_PASSWORD
+    and EMAIL_DESTINATARIO
+    and EMAIL_PASSWORD != "la_contraseña_generada"
+    and EMAIL_REMITENTE != "tucuenta@outlook.com"
+    and EMAIL_DESTINATARIO != "destinatario@correo.com"
+):
+    enviar_reporte(...)
+else:
+    print("⚠️ Envío de correo omitido (credenciales no configuradas)")
+```
+
+## SMTP Settings
+
+The system uses Gmail's SMTP server with the following configuration (from `src/emailer.py:30`):
+
+```python
+with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+    smtp.login(remitente, password)
+    smtp.send_message(mensaje)
+```
+
+| Setting | Value |
+|---------|-------|
+| **Server** | `smtp.gmail.com` |
+| **Port** | `465` |
+| **Encryption** | SSL/TLS |
+| **Authentication** | Required |
+
+<Note>
+  These settings are hardcoded for Gmail. Other email providers require code modifications.
+</Note>
+
+## Email Content
+
+The system sends emails with the following structure (from `src/emailer.py:6-28`):
+
+### Email Headers
+
+```python
+mensaje["Subject"] = "📦 Reporte Automático de Inventario"
+mensaje["From"] = remitente
+mensaje["To"] = destinatario
+```
+
+### Email Body
+
+```python
+mensaje.set_content(
+    "Este correo fue generado automáticamente.\n"
+    "Se adjunta el reporte actualizado de inventario con alertas y recomendaciones."
+)
+```
+
+### Attachment
+
+The Excel report is attached:
+
+```python
+with open(ruta_excel, "rb") as f:
+    mensaje.add_attachment(
+        f.read(),
+        maintype="application",
+        subtype="octet-stream",
+        filename=os.path.basename(ruta_excel),
+    )
+```
+
+**Attachment Details:**
+- **Type:** Excel file (`.xlsx`)
+- **Name:** `reporte_inventario.xlsx`
+- **Content:** Multi-sheet report with complete inventory analysis
+
+## Testing Email Delivery
+
+### Quick Test
+
+Run the system to test email delivery:
+
+```bash
+python src/main.py
+```
+
+**Expected output if successful:**
+```
+✅ Inventario cargado correctamente
+✅ Clasificación ABC aplicada
+✅ Riesgo evaluado y reposición recomendada
+✅ Reporte Excel generado en output/reporte_inventario.xlsx
+✅ Gráficos generados correctamente
+✅ Reporte enviado por correo
+```
+
+<Tip>
+  Check your recipient inbox (including spam folder) to verify the email was received.
+</Tip>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="⚠️ Envío de correo omitido (credenciales no configuradas)">
+    **Cause:** Email configuration validation failed
+    
+    **Solutions:**
+    - Verify `.env` file exists in project root
+    - Check all three variables are defined: `EMAIL_REMITENTE`, `EMAIL_PASSWORD`, `EMAIL_DESTINATARIO`
+    - Ensure variables don't contain placeholder values
+    - Remove any quotes around values in `.env` file
+    
+    **Verify configuration:**
+    ```bash
+    cat .env
+    ```
+  </Accordion>
+  
+  <Accordion title="SMTPAuthenticationError: Username and Password not accepted">
+    **Cause:** Invalid Gmail credentials or app password
+    
+    **Solutions:**
+    - Verify you're using an **app password**, not your regular Gmail password
+    - Check that 2-Factor Authentication is enabled on your Gmail account
+    - Generate a new app password and update `.env`
+    - Ensure there are no extra spaces in the password
+    - Verify the email address is correct
+  </Accordion>
+  
+  <Accordion title="SMTPServerDisconnected: Connection unexpectedly closed">
+    **Cause:** Network or firewall issues
+    
+    **Solutions:**
+    - Check internet connection
+    - Verify firewall allows outbound connections on port 465
+    - Try again - this can be a temporary Gmail server issue
+    - Check if your organization blocks SMTP traffic
+  </Accordion>
+  
+  <Accordion title="FileNotFoundError: output/reporte_inventario.xlsx">
+    **Cause:** Report file doesn't exist
+    
+    **Solutions:**
+    - This should not happen as the email is sent AFTER report generation
+    - Check console output for errors in report generation step
+    - Verify the `output/` directory exists and is writable
+  </Accordion>
+  
+  <Accordion title="Email sent but not received">
+    **Cause:** Emails caught by spam filters or delivery delays
+    
+    **Solutions:**
+    - Check spam/junk folder in recipient email
+    - Wait a few minutes - Gmail can have delays
+    - Verify recipient email address is correct in `.env`
+    - Check Gmail's "Sent" folder to confirm it was sent
+    - Add sender email to recipient's contacts/safe senders
+  </Accordion>
+  
+  <Accordion title="Less secure app access error">
+    **Cause:** Attempting to use regular password instead of app password
+    
+    **Solution:**
+    Google has disabled "less secure app access". You **must** use app passwords with 2FA enabled. Regular passwords no longer work for SMTP.
+  </Accordion>
+</AccordionGroup>
+
+## Using Different Email Providers
+
+To use a different email provider (not Gmail), modify `src/emailer.py:30`:
+
+### Outlook/Office 365
+
+```python
+with smtplib.SMTP_SSL("smtp.office365.com", 587) as smtp:
+    smtp.starttls()
+    smtp.login(remitente, password)
+    smtp.send_message(mensaje)
+```
+
+### Yahoo Mail
+
+```python
+with smtplib.SMTP_SSL("smtp.mail.yahoo.com", 465) as smtp:
+    smtp.login(remitente, password)
+    smtp.send_message(mensaje)
+```
+
+### Custom SMTP Server
+
+```python
+with smtplib.SMTP_SSL("your.smtp.server", 465) as smtp:
+    smtp.login(remitente, password)
+    smtp.send_message(mensaje)
+```
+
+<Warning>
+  Different providers may have different authentication requirements. Consult your email provider's documentation for SMTP settings.
+</Warning>
+
+## Security Best Practices
+
+<Steps>
+  <Step title="Never commit .env file">
+    Add `.env` to your `.gitignore` file:
+    
+    ```bash
+    echo ".env" >> .gitignore
+    ```
+  </Step>
+  
+  <Step title="Use dedicated email account">
+    Consider creating a separate Gmail account specifically for automated reporting
+  </Step>
+  
+  <Step title="Limit app password scope">
+    Generate separate app passwords for different applications to maintain granular control
+  </Step>
+  
+  <Step title="Rotate passwords regularly">
+    Periodically revoke old app passwords and generate new ones
+  </Step>
+  
+  <Step title="Restrict file permissions">
+    Set appropriate permissions on `.env` file:
+    
+    ```bash
+    chmod 600 .env
+    ```
+  </Step>
+</Steps>
+
+## Revoking App Passwords
+
+If you need to revoke an app password:
+
+<Steps>
+  <Step title="Visit App Passwords page">
+    Go to [https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+  </Step>
+  
+  <Step title="Find the password">
+    Locate the app password you want to revoke (e.g., "Inventory System")
+  </Step>
+  
+  <Step title="Remove access">
+    Click the delete/remove icon next to the password
+  </Step>
+  
+  <Step title="Update configuration">
+    If still needed, generate a new app password and update `.env` file
+  </Step>
+</Steps>
+
+## Automated Scheduling Considerations
+
+When scheduling automated execution:
+
+- **Cron jobs:** Ensure the `.env` file path is accessible
+- **Task schedulers:** Verify environment variables are loaded correctly
+- **Docker containers:** Mount `.env` file or pass variables as container environment variables
+- **Cloud functions:** Use platform-specific secret management (e.g., AWS Secrets Manager)
+
+<Tip>
+  For production deployments, consider using environment variable injection rather than `.env` files for better security.
+</Tip>
+
+## Email Delivery Confirmation
+
+Success indicator (from `src/emailer.py:34`):
+
+```python
+print("✅ Reporte enviado por correo")
+```
+
+This message appears when:
+- SMTP connection succeeded
+- Authentication passed
+- Email was accepted by Gmail's server
+- Attachment was sent successfully
+
+<Note>
+  This confirms the email was sent to Gmail's server, not that it was delivered to the recipient's inbox. Check the recipient's inbox (including spam) to verify delivery.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Running the System" icon="play" href="/guide/running">
+    Learn how to execute the system and test email delivery
+  </Card>
+  <Card title="Understanding Outputs" icon="chart-bar" href="/guide/understanding-outputs">
+    Understand the email attachment contents and reports
+  </Card>
+</CardGroup>

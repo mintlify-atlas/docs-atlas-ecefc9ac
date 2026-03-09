@@ -1,97 +1,92 @@
 ---
 title: "Introduction"
-description: "Welcome to the new home for your documentation"
+description: "Automated inventory management system with ABC analysis, risk evaluation, and intelligent reporting"
 ---
 
-## Setting up
+# Sistema de Control Inteligente de Inventario
 
-Get your documentation site up and running in minutes.
+An automated Python-based inventory management system that streamlines operational tasks through ETL processing, ABC classification, risk evaluation, Excel reporting, and automated email delivery.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="ABC Classification" icon="chart-pie" href="/reference/abc-classification">
+    Automatically classify products by sales volume using the proven ABC method
+  </Card>
+  <Card title="Risk Evaluation" icon="triangle-exclamation" href="/reference/risk-evaluation">
+    Detect critical stock levels and generate automatic replenishment recommendations
+  </Card>
+  <Card title="Excel Reports" icon="file-excel" href="/guide/understanding-outputs">
+    Generate comprehensive multi-sheet reports with inventory status and alerts
+  </Card>
+  <Card title="Automated Charts" icon="chart-line" href="/guide/understanding-outputs">
+    Create visual analytics for inventory status and ABC distribution
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+Get up and running with the inventory system in minutes.
+
+<Steps>
+  <Step title="Install Dependencies">
+    Install Python dependencies from requirements.txt
+    
+    ```bash
+    pip install -r requirements.txt
+    ```
+  </Step>
+  
+  <Step title="Prepare Your Data">
+    Place your inventory Excel file in the `data/` directory
+  </Step>
+  
+  <Step title="Run the System">
+    Execute the main script to process your inventory
+    
+    ```bash
+    python src/main.py
+    ```
+  </Step>
+</Steps>
+
+<Card title="Full Quickstart Guide" icon="rocket" href="/quickstart" horizontal>
+  Follow the complete guide to set up email notifications and understand all features
 </Card>
 
-## Make it yours
+## How It Works
 
-Design a docs site that looks great and empowers your users.
+The system automates the entire inventory management workflow:
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+1. **Load** — Reads inventory data from Excel files
+2. **Analyze** — Applies ABC classification based on monthly sales
+3. **Evaluate** — Assesses stock risks and calculates replenishment needs
+4. **Report** — Generates detailed Excel reports with multiple sheets
+5. **Visualize** — Creates charts for inventory status and classification
+6. **Notify** — Sends automated email reports to stakeholders
 
-## Create beautiful pages
+## Built For
 
-Everything you need to create world-class documentation.
+This system solves common inventory management challenges:
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+- **Manual Analysis** — Automates time-consuming inventory reviews
+- **Human Errors** — Eliminates mistakes in classification and calculations
+- **Missed Alerts** — Provides early warnings for stock shortages
+- **Inconsistent Reports** — Generates standardized, professional reports
 
-## Need inspiration?
+## Explore the Documentation
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Set up the system and configure your environment
+  </Card>
+  <Card title="Configuration" icon="gear" href="/guide/configuration">
+    Configure email settings and system parameters
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/reference/architecture">
+    Understand the system's modular design
+  </Card>
+  <Card title="Module Reference" icon="code" href="/reference/modules">
+    Explore all functions and their parameters
+  </Card>
+</CardGroup>

@@ -1,0 +1,560 @@
+---
+title: "Extending the System"
+description: "How to customize and extend the inventory management system"
+---
+
+# Extending the System
+
+The inventory management system is designed with modularity in mind, making it easy to customize and extend. This guide shows you how to add new features and modify existing functionality.
+
+## Customizing ABC Classification
+
+The ABC classification algorithm in `src/analisis.py` uses default thresholds. You can customize these to match your business needs.
+
+### Adjusting ABC Thresholds
+
+The default configuration classifies products as:
+- **A**: Top 70% of sales value
+- **B**: Next 20% (70-90%)
+- **C**: Remaining 10% (90-100%)
+
+<Steps>
+  <Step title="Modify the Classification Function">
+    Edit `src/analisis.py:20` to change the thresholds:
+
+    ```python src/analisis.py
+    def asignar_categoria(p):
+        # Original thresholds: 0.7, 0.9
+        if p <= 0.8:  # Top 80% = Category A
+            return "A"
+        elif p <= 0.95:  # 80-95% = Category B
+            return "B"
+        else:  # 95-100% = Category C
+            return "C"
+    ```
+  </Step>
+
+  <Step title="Add Custom Classification Criteria">
+    Classify based on multiple factors, not just sales:
+
+    ```python src/analisis.py
+    def clasificacion_abc_avanzada(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Advanced ABC classification using sales value and profit margin.
+        """
+        df = df.copy()
+        
+        # Calculate sales value (sales × price)
+        df['valor_ventas'] = df['ventas_mensuales'] * df['precio_unitario']
+        
+        # Sort by sales value
+        df = df.sort_values(by='valor_ventas', ascending=False)
+        
+        # Calculate cumulative percentage
+        total_valor = df['valor_ventas'].sum()
+        df['porcentaje_acumulado'] = df['valor_ventas'].cumsum() / total_valor
+        
+        # Assign categories with profit margin consideration
+        def asignar_categoria_avanzada(row):
+            p = row['porcentaje_acumulado']
+            margen = row.get('margen_ganancia', 0)
+            
+            # High-value or high-margin products = A
+            if p <= 0.7 or margen > 0.5:
+                return "A"
+            # Medium value = B
+            elif p <= 0.9:
+                return "B"
+            # Low value and low margin = C
+            else:
+                return "C"
+        
+        df['categoria_abc'] = df.apply(asignar_categoria_avanzada, axis=1)
+        
+        print("✅ Clasificación ABC avanzada aplicada")
+        return df
+    ```
+  </Step>
+
+  <Step title="Update the Main Script">
+    Replace the classification call in `src/main.py:17`:
+
+    ```python src/main.py
+    from analisis import clasificacion_abc_avanzada
+    
+    # In main()
+    df = clasificacion_abc_avanzada(df)  # Instead of clasificacion_abc(df)
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  Test your custom classification logic with sample data before deploying to production.
+</Tip>
+
+## Adding New Report Sheets
+
+Extend the Excel report with additional analysis sheets.
+
+### Example: Add a Top Products Sheet
+
+```python src/reportes.py
+def generar_reporte_excel(df: pd.DataFrame, ruta_salida: str):
+    with pd.ExcelWriter(ruta_salida, engine="openpyxl") as writer:
+        # Existing sheets
+        df.to_excel(writer, sheet_name="Inventario_Completo", index=False)
+        
+        criticos = df[df["estado_stock"] == "CRITICO"]
+        criticos.to_excel(writer, sheet_name="Productos_Criticos", index=False)
+        
+        riesgo = df[df["estado_stock"] == "RIESGO"]
+        riesgo.to_excel(writer, sheet_name="Productos_En_Riesgo", index=False)
+        
+        # NEW: Top 20 products by sales
+        top_productos = df.nlargest(20, 'ventas_mensuales')[[
+            'producto', 'ventas_mensuales', 'categoria_abc', 'stock_actual'
+        ]]
+        top_productos.to_excel(writer, sheet_name="Top_20_Productos", index=False)
+        
+        # NEW: Category A products requiring replenishment
+        categoria_a_reposicion = df[
+            (df['categoria_abc'] == 'A') & 
+            (df['reponer_cantidad'] > 0)
+        ]
+        categoria_a_reposicion.to_excel(
+            writer, 
+            sheet_name="Categoria_A_Reponer", 
+            index=False
+        )
+
+    # Apply formatting to all sheets
+    wb = load_workbook(ruta_salida)
+    for ws in wb.worksheets:
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                if cell.value:
+                    max_length = max(max_length, len(str(cell.value)))
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            ws.column_dimensions[column].width = max_length + 2
+
+    wb.save(ruta_salida)
+    print(f"✅ Reporte Excel generado en {ruta_salida}")
+```
+
+<Note>
+  Each new sheet appears as a tab in the generated Excel file. Users can navigate between sheets to view different analyses.
+</Note>
+
+## Creating Additional Charts
+
+Add new visualizations to the graphics module.
+
+### Example: Add a Replenishment Chart
+
+```python src/reportes_graficos.py
+import os
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
+def generar_graficos(df: pd.DataFrame, carpeta_salida: str):
+    os.makedirs(carpeta_salida, exist_ok=True)
+
+    # Existing charts
+    # ... (estado_inventario.png, clasificacion_abc.png)
+    
+    # NEW: Replenishment needs by category
+    plt.figure(figsize=(10, 6))
+    reposicion_por_categoria = df.groupby('categoria_abc')['reponer_cantidad'].sum()
+    
+    colors = {'A': '#ef4444', 'B': '#f59e0b', 'C': '#10b981'}
+    reposicion_por_categoria.plot(
+        kind='bar',
+        color=[colors.get(cat, '#6b7280') for cat in reposicion_por_categoria.index]
+    )
+    
+    plt.title('Necesidad de Reposición por Categoría ABC')
+    plt.xlabel('Categoría')
+    plt.ylabel('Cantidad Total a Reponer')
+    plt.xticks(rotation=0)
+    plt.tight_layout()
+    plt.savefig(os.path.join(carpeta_salida, 'reposicion_categoria.png'))
+    plt.close()
+    
+    # NEW: Top 10 products needing replenishment
+    plt.figure(figsize=(12, 6))
+    top_reposicion = df.nlargest(10, 'reponer_cantidad')[['producto', 'reponer_cantidad']]
+    
+    plt.barh(top_reposicion['producto'], top_reposicion['reponer_cantidad'])
+    plt.title('Top 10 Productos que Requieren Reposición')
+    plt.xlabel('Cantidad a Reponer')
+    plt.ylabel('Producto')
+    plt.tight_layout()
+    plt.savefig(os.path.join(carpeta_salida, 'top_reposicion.png'))
+    plt.close()
+    
+    # NEW: Stock status distribution with percentages
+    plt.figure(figsize=(8, 8))
+    estado_counts = df['estado_stock'].value_counts()
+    
+    colors_estado = {'CRITICO': '#dc2626', 'RIESGO': '#f59e0b', 'OK': '#059669'}
+    plt.pie(
+        estado_counts.values,
+        labels=estado_counts.index,
+        autopct='%1.1f%%',
+        colors=[colors_estado.get(status, '#6b7280') for status in estado_counts.index],
+        startangle=90
+    )
+    plt.title('Distribución del Estado de Inventario')
+    plt.savefig(os.path.join(carpeta_salida, 'distribucion_estado.png'))
+    plt.close()
+
+    print("✅ Gráficos generados correctamente")
+```
+
+<Warning>
+  Ensure `matplotlib` is installed when adding custom charts. Large datasets may require additional styling adjustments.
+</Warning>
+
+## Integrating External Data Sources
+
+Extend the system to load data from databases or APIs instead of Excel files.
+
+### Example: Load from CSV
+
+```python src/loader.py
+import pandas as pd
+
+
+def cargar_inventario(ruta: str, formato: str = 'excel') -> pd.DataFrame:
+    """
+    Carga el archivo de inventario desde múltiples formatos.
+    
+    Args:
+        ruta: Path to the inventory file
+        formato: File format ('excel', 'csv', 'json')
+    """
+    try:
+        if formato == 'excel':
+            df = pd.read_excel(ruta)
+        elif formato == 'csv':
+            df = pd.read_csv(ruta)
+        elif formato == 'json':
+            df = pd.read_json(ruta)
+        else:
+            raise ValueError(f"Formato no soportado: {formato}")
+        
+        print(f"✅ Inventario cargado correctamente desde {formato}")
+        return df
+    except Exception as e:
+        print(f"❌ Error al cargar inventario: {e}")
+        raise
+```
+
+### Example: Load from PostgreSQL
+
+```python src/loader.py
+import pandas as pd
+from sqlalchemy import create_engine
+
+
+def cargar_inventario_desde_db(db_url: str, tabla: str = 'inventario') -> pd.DataFrame:
+    """
+    Carga inventario desde una base de datos PostgreSQL.
+    
+    Args:
+        db_url: Database connection string
+                Example: 'postgresql://user:password@localhost:5432/inventory_db'
+        tabla: Table name to query
+    """
+    try:
+        engine = create_engine(db_url)
+        query = f"SELECT * FROM {tabla}"
+        df = pd.read_sql(query, engine)
+        
+        print(f"✅ {len(df)} productos cargados desde la base de datos")
+        return df
+    except Exception as e:
+        print(f"❌ Error al conectar con la base de datos: {e}")
+        raise
+```
+
+Update `src/main.py` to use the database loader:
+
+```python src/main.py
+from loader import cargar_inventario_desde_db
+from config import DB_URL  # Add to config.py
+
+def main():
+    # Load from database instead of Excel
+    df = cargar_inventario_desde_db(DB_URL, tabla='inventario')
+    
+    # Rest of the pipeline remains the same
+    df = clasificacion_abc(df)
+    df = evaluar_riesgo_y_reposicion(df)
+    # ...
+```
+
+<Tip>
+  Add `sqlalchemy` and `psycopg2-binary` to `requirements.txt` when using PostgreSQL integration.
+</Tip>
+
+## Modifying Email Templates
+
+Customize the email content and formatting.
+
+### Enhanced Email with HTML Formatting
+
+```python src/emailer.py
+import smtplib
+from email.message import EmailMessage
+import os
+
+
+def enviar_reporte(
+    remitente: str,
+    password: str,
+    destinatario: str,
+    ruta_excel: str,
+    stats: dict = None  # NEW: Optional statistics
+):
+    mensaje = EmailMessage()
+    mensaje["Subject"] = "📦 Reporte Automático de Inventario"
+    mensaje["From"] = remitente
+    mensaje["To"] = destinatario
+
+    # Plain text version
+    mensaje.set_content(
+        "Este correo fue generado automáticamente.\n"
+        "Se adjunta el reporte actualizado de inventario con alertas y recomendaciones."
+    )
+    
+    # HTML version with statistics
+    if stats:
+        html_content = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif;">
+            <h2>📦 Reporte de Inventario</h2>
+            <p>Este correo fue generado automáticamente el {stats.get('fecha', 'N/A')}.</p>
+            
+            <h3>Resumen Ejecutivo</h3>
+            <table style="border-collapse: collapse; width: 100%;">
+              <tr style="background-color: #f3f4f6;">
+                <td style="padding: 8px; border: 1px solid #ddd;"><strong>Total de Productos</strong></td>
+                <td style="padding: 8px; border: 1px solid #ddd;">{stats.get('total_productos', 0)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; border: 1px solid #ddd;"><strong>Productos Críticos</strong></td>
+                <td style="padding: 8px; border: 1px solid #ddd; color: #dc2626;">
+                  <strong>{stats.get('criticos', 0)}</strong>
+                </td>
+              </tr>
+              <tr style="background-color: #f3f4f6;">
+                <td style="padding: 8px; border: 1px solid #ddd;"><strong>Productos en Riesgo</strong></td>
+                <td style="padding: 8px; border: 1px solid #ddd; color: #f59e0b;">
+                  <strong>{stats.get('riesgo', 0)}</strong>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; border: 1px solid #ddd;"><strong>Cantidad Total a Reponer</strong></td>
+                <td style="padding: 8px; border: 1px solid #ddd;">{stats.get('reponer_total', 0)}</td>
+              </tr>
+            </table>
+            
+            <p style="margin-top: 20px;">
+              Se adjunta el reporte completo en formato Excel con análisis detallado.
+            </p>
+            
+            <p style="color: #6b7280; font-size: 12px; margin-top: 30px;">
+              Sistema Automatizado de Control de Inventario<br>
+              Generado automáticamente - No responder a este correo
+            </p>
+          </body>
+        </html>
+        """
+        mensaje.add_alternative(html_content, subtype='html')
+
+    # Attach Excel file
+    with open(ruta_excel, "rb") as f:
+        mensaje.add_attachment(
+            f.read(),
+            maintype="application",
+            subtype="octet-stream",
+            filename=os.path.basename(ruta_excel),
+        )
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(remitente, password)
+        smtp.send_message(mensaje)
+
+    print("✅ Reporte enviado por correo")
+```
+
+Update `src/main.py` to pass statistics:
+
+```python src/main.py
+from datetime import datetime
+
+def main():
+    # ... process data ...
+    
+    # Collect statistics
+    stats = {
+        'fecha': datetime.now().strftime('%Y-%m-%d %H:%M'),
+        'total_productos': len(df),
+        'criticos': len(df[df['estado_stock'] == 'CRITICO']),
+        'riesgo': len(df[df['estado_stock'] == 'RIESGO']),
+        'reponer_total': df['reponer_cantidad'].sum()
+    }
+    
+    # Send email with statistics
+    enviar_reporte(
+        EMAIL_REMITENTE,
+        EMAIL_PASSWORD,
+        EMAIL_DESTINATARIO,
+        RUTA_REPORTE,
+        stats=stats  # NEW parameter
+    )
+```
+
+## Adding New Modules
+
+Create additional analysis modules for specialized functionality.
+
+### Example: Demand Forecasting Module
+
+```python src/prediccion.py
+import pandas as pd
+import numpy as np
+
+
+def predecir_demanda_futura(df: pd.DataFrame, meses: int = 3) -> pd.DataFrame:
+    """
+    Predice la demanda futura basada en tendencias históricas.
+    
+    Args:
+        df: DataFrame con columna 'ventas_mensuales'
+        meses: Número de meses a predecir
+    
+    Returns:
+        DataFrame con columna adicional 'demanda_proyectada'
+    """
+    df = df.copy()
+    
+    # Simple linear projection (can be enhanced with ML models)
+    # Assumes 10% growth rate
+    tasa_crecimiento = 0.10
+    
+    df['demanda_proyectada'] = df['ventas_mensuales'] * (
+        (1 + tasa_crecimiento) ** meses
+    )
+    
+    # Recommend stock level for projected demand
+    df['stock_recomendado'] = df['demanda_proyectada'] * 1.2  # 20% buffer
+    
+    print(f"✅ Demanda proyectada para {meses} meses")
+    return df
+```
+
+Integrate into the main pipeline:
+
+```python src/main.py
+from prediccion import predecir_demanda_futura
+
+def main():
+    df = cargar_inventario(RUTA_INVENTARIO)
+    df = clasificacion_abc(df)
+    df = evaluar_riesgo_y_reposicion(df)
+    df = predecir_demanda_futura(df, meses=3)  # NEW
+    
+    generar_reporte_excel(df, RUTA_REPORTE)
+    # ...
+```
+
+<Note>
+  The projection uses a simple growth model. For production use, consider integrating time-series forecasting libraries like `statsmodels` or `prophet`.
+</Note>
+
+## Best Practices
+
+When extending the system:
+
+<CardGroup cols={2}>
+  <Card title="Maintain Modularity" icon="cubes">
+    Keep each module focused on a single responsibility. New features should be self-contained.
+  </Card>
+  
+  <Card title="Preserve Data Flow" icon="diagram-project">
+    Follow the existing pipeline: Load → Analyze → Evaluate → Report → Notify
+  </Card>
+  
+  <Card title="Add Error Handling" icon="shield-check">
+    Wrap new functionality in try-except blocks and provide meaningful error messages.
+  </Card>
+  
+  <Card title="Document Changes" icon="book">
+    Add docstrings and comments explaining custom logic and parameters.
+  </Card>
+</CardGroup>
+
+## Example: Complete Custom Extension
+
+Here's a complete example adding a supplier recommendation feature:
+
+<CodeGroup>
+```python src/proveedores.py (New Module)
+import pandas as pd
+
+# Supplier database
+SUPPLIERS = {
+    'A': {'nombre': 'Proveedor Premium', 'tiempo_entrega': 2, 'confiabilidad': 0.98},
+    'B': {'nombre': 'Proveedor Estándar', 'tiempo_entrega': 5, 'confiabilidad': 0.92},
+    'C': {'nombre': 'Proveedor Económico', 'tiempo_entrega': 10, 'confiabilidad': 0.85}
+}
+
+def recomendar_proveedor(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Recomienda el mejor proveedor según la urgencia y categoría del producto.
+    """
+    df = df.copy()
+    
+    def asignar_proveedor(row):
+        # Critical products need fast, reliable suppliers
+        if row['estado_stock'] == 'CRITICO':
+            return SUPPLIERS['A']['nombre']
+        # Category A products need reliable suppliers
+        elif row['categoria_abc'] == 'A':
+            return SUPPLIERS['A']['nombre']
+        # Risk products need standard service
+        elif row['estado_stock'] == 'RIESGO':
+            return SUPPLIERS['B']['nombre']
+        # Others can use economical option
+        else:
+            return SUPPLIERS['C']['nombre']
+    
+    df['proveedor_recomendado'] = df.apply(asignar_proveedor, axis=1)
+    
+    print("✅ Proveedores recomendados")
+    return df
+```
+
+```python src/main.py (Updated)
+from proveedores import recomendar_proveedor
+
+def main():
+    df = cargar_inventario(RUTA_INVENTARIO)
+    df = clasificacion_abc(df)
+    df = evaluar_riesgo_y_reposicion(df)
+    df = recomendar_proveedor(df)  # NEW
+    
+    generar_reporte_excel(df, RUTA_REPORTE)
+    generar_graficos(df, CARPETA_GRAFICOS)
+    enviar_reporte(...)
+```
+</CodeGroup>
+
+<Card title="Architecture Overview" icon="sitemap" href="/reference/architecture" horizontal>
+  Learn more about the system's modular design and component relationships
+</Card>

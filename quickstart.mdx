@@ -1,80 +1,164 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get up and running with the inventory management system in minutes
 ---
 
-## Get started in three steps
+## Quick Start Guide
 
-Get your documentation site running locally and make your first customization.
+This guide will walk you through your first inventory analysis in just a few minutes. By the end, you'll have processed inventory data, generated reports, and understood the system's outputs.
 
-### Step 1: Set up your local environment
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+Before starting, make sure you've completed the [installation](/installation) steps and have Python 3 and all dependencies installed.
+
+## Step-by-Step Tutorial
+
+<Steps>
+  <Step title="Create Sample Inventory Data">
+    Create a file named `inventario.xlsx` in the `data/` directory with the following structure:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    | producto | stock_actual | stock_minimo | ventas_mensuales |
+    |----------|--------------|--------------|------------------|
+    | Laptop HP | 15 | 10 | 45 |
+    | Mouse Logitech | 8 | 20 | 60 |
+    | Teclado Mecánico | 25 | 15 | 30 |
+    | Monitor Samsung | 5 | 12 | 40 |
+    | Cable HDMI | 50 | 30 | 25 |
+    | Auriculares Sony | 12 | 10 | 35 |
 
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    <Note>
+      These four columns are **required**: `producto`, `stock_actual`, `stock_minimo`, and `ventas_mensuales`. The system will fail if any column is missing.
+    </Note>
+  </Step>
+  
+  <Step title="Run the System">
+    Execute the main script from the project root:
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
+    ```bash
+    python src/main.py
+    ```
+    
+    You should see output similar to:
+    
+    ```plaintext
+    ✅ Inventario cargado correctamente
+    ✅ Clasificación ABC aplicada
+    ✅ Riesgo evaluado y reposición recomendada
+    ✅ Reporte Excel generado en output/reporte_inventario.xlsx
+    ✅ Gráficos generados correctamente
+    ⚠️ Envío de correo omitido (credenciales no configuradas)
+    ```
+    
+    <Tip>
+      If you see all checkmarks, the system ran successfully! The warning about email is expected if you haven't configured email credentials yet.
+    </Tip>
+  </Step>
+  
+  <Step title="Review the Excel Report">
+    Open `output/reporte_inventario.xlsx` to see the generated report with three sheets:
+    
+    - **Inventario_Completo**: Full inventory with ABC classification and stock status
+    - **Productos_Criticos**: Products with CRÍTICO status (immediate attention needed)
+    - **Productos_En_Riesgo**: Products with RIESGO status (monitor closely)
+  </Step>
+  
+  <Step title="View the Generated Charts">
+    Check the `output/graficos/` directory for two PNG files:
+    
+    - **estado_inventario.png**: Bar chart showing distribution of OK/RIESGO/CRÍTICO products
+    - **clasificacion_abc.png**: Pie chart showing A/B/C category distribution
+  </Step>
+  
+  <Step title="Understand the Results">
+    Review the classification and recommendations for each product:
+    
+    **Example Analysis:**
+    - **Mouse Logitech**: CRÍTICO (8 ≤ 20 minimum) → Reorder 52 units
+    - **Monitor Samsung**: CRÍTICO (5 ≤ 12 minimum) → Reorder 35 units
+    - **Laptop HP**: OK (15 > 10 minimum) → No action needed
+  </Step>
+</Steps>
+
+## Understanding the Business Logic
+
+The system applies two key analyses to your inventory:
+
+### ABC Classification
+
+Products are categorized by their contribution to total sales (from `analisis.py:20-26`):
+
+- **Category A**: Top 70% of cumulative sales (high-value products)
+- **Category B**: Next 20% (70-90% cumulative sales)
+- **Category C**: Remaining 10% (low-value products)
+
+In our example:
+- **Laptop HP** (45 sales), **Mouse Logitech** (60 sales), **Monitor Samsung** (40 sales) → Likely Category A
+- Other products → Categories B or C
+
+### Stock Status Evaluation
+
+Each product receives a status based on current stock vs. minimum threshold (from `decisiones.py:11-17`):
+
+- **OK**: `stock_actual > stock_minimo × 1.2` (healthy buffer)
+- **RIESGO**: `stock_minimo < stock_actual ≤ stock_minimo × 1.2` (approaching minimum)
+- **CRÍTICO**: `stock_actual ≤ stock_minimo` (below minimum, immediate action required)
+
+### Reorder Calculation
+
+For products in CRÍTICO or RIESGO status, the system recommends (from `decisiones.py:22-25`):
+
+```python
+reponer_cantidad = max(ventas_mensuales - stock_actual, 0)
+```
+
+**Example**: Mouse Logitech has 8 units in stock and 60 monthly sales → Reorder 52 units.
+
+## Real-World Example
+
+Using the sample data above:
+
+| Product | Status | Reason | Action |
+|---------|--------|--------|--------|
+| Mouse Logitech | **CRÍTICO** | 8 ≤ 20 (below minimum) | Reorder 52 units immediately |
+| Monitor Samsung | **CRÍTICO** | 5 ≤ 12 (below minimum) | Reorder 35 units immediately |
+| Teclado Mecánico | **OK** | 25 > 15 × 1.2 = 18 (healthy buffer) | No action needed |
+| Auriculares Sony | **RIESGO** | 10 < 12 ≤ 12 × 1.2 = 14.4 (approaching minimum) | Monitor closely, may need 23 units |
+
+## Common Issues
+
+<Accordion title="FileNotFoundError: data/inventario.xlsx not found">
+  Create the `data/` directory in your project root and place your inventory Excel file there. The system looks for `data/inventario.xlsx` by default (configured in `main.py:9`).
 </Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
+<Accordion title="KeyError: 'producto' or other column name">
+  Your Excel file must have these exact column names: `producto`, `stock_actual`, `stock_minimo`, `ventas_mensuales`. Check for typos or missing columns.
 </Accordion>
 
-## Next steps
+<Accordion title="Email warning appears">
+  This is expected if you haven't configured email credentials. See the [email setup guide](/guide/email-setup) to enable automated email delivery.
+</Accordion>
 
-Now that you have your docs running, explore these key features:
+<Accordion title="No output files generated">
+  Check the console for error messages. The system creates `output/` and `output/graficos/` directories automatically, but it needs write permissions in your project folder.
+</Accordion>
+
+## Next Steps
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Configure Email" icon="envelope" href="/guide/email-setup">
+    Set up automated email delivery for your reports
+  </Card>
+  <Card title="Customize Output" icon="gear" href="/guide/configuration">
+    Adjust file paths and system settings
+  </Card>
+  <Card title="Understand ABC Classification" icon="chart-pie" href="/reference/abc-classification">
+    Learn the methodology behind product categorization
+  </Card>
+  <Card title="Extend the System" icon="code" href="/advanced/extending">
+    Add custom features and integrate with other tools
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+<Tip>
+  **Pro Tip**: Run the system on a schedule (e.g., daily at 8 AM) using cron (Linux/Mac) or Task Scheduler (Windows) to automate your inventory monitoring completely. See [Running the System](/guide/running) for details.
+</Tip>
