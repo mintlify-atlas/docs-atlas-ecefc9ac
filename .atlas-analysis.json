@@ -1,0 +1,62 @@
+{
+  "projectType": "general",
+  "projectName": "Sistema de Control Inteligente de Inventario",
+  "projectDescription": "Automated inventory management system that performs ETL, ABC analysis, risk evaluation, Excel reporting, and automated email delivery.",
+  "theme": "linden",
+  "primaryColor": "#2563eb",
+  "lightColor": "#3b82f6",
+  "darkColor": "#1e40af",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "installation",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "User Guide",
+        "pages": [
+          "guide/configuration",
+          "guide/running",
+          "guide/understanding-outputs",
+          "guide/email-setup"
+        ]
+      },
+      {
+        "group": "Technical Reference",
+        "pages": [
+          "reference/architecture",
+          "reference/abc-classification",
+          "reference/risk-evaluation",
+          "reference/modules"
+        ]
+      },
+      {
+        "group": "Advanced",
+        "pages": [
+          "advanced/troubleshooting",
+          "advanced/extending"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Automatic inventory loading from Excel files",
+    "ABC classification based on monthly sales",
+    "Risk evaluation and automatic replenishment recommendations",
+    "Multi-sheet Excel report generation",
+    "Automated chart generation (inventory status, ABC distribution)",
+    "Automatic email delivery with reports attached"
+  ],
+  "publicApiSurface": [
+    "cargar_inventario(ruta: str) -> pd.DataFrame",
+    "clasificacion_abc(df: pd.DataFrame) -> pd.DataFrame",
+    "evaluar_riesgo_y_reposicion(df: pd.DataFrame) -> pd.DataFrame",
+    "generar_reporte_excel(df: pd.DataFrame, ruta_salida: str)",
+    "generar_graficos(df: pd.DataFrame, carpeta_salida: str)",
+    "enviar_reporte(remitente: str, password: str, destinatario: str, ruta_excel: str)"
+  ]
+}
